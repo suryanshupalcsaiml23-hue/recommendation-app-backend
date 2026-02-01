@@ -3,8 +3,9 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import pool from "./db.js";
 
-const PORT = 5000;
-const SECRET = "supersecretkey";
+const PORT = process.env.PORT || 5000;
+const SECRET = process.env.JWT_SECRET || "supersecretkey";
+
 
 // ---------------- MOVIE DATA ----------------
 const movies = [
@@ -49,39 +50,70 @@ const server = http.createServer((req, res) => {
   }
 
   // -------- REGISTER --------
-  if (req.url === "/register" && req.method === "POST") {
-    let body = "";
-    req.on("data", c => (body += c));
-    req.on("end", async () => {
-      try {
-        const { email, password } = JSON.parse(body);
-        if (!email || !password) throw new Error();
+ // ---------------- REGISTER ----------------
+if (req.url === "/register" && req.method === "POST") {
+  let body = "";
 
-        const exists = await pool.query(
-          "SELECT 1 FROM users WHERE email=$1",
-          [email]
-        );
+  req.on("data", chunk => {
+    body += chunk.toString();
+  });
 
-        if (exists.rows.length) {
-          res.writeHead(409, { "Content-Type": "application/json" });
-          return res.end(JSON.stringify({ error: "User already exists" }));
-        }
+  req.on("end", async () => {
+    // 🔴 IMPORTANT: handle empty body
+    if (!body) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: "Empty request body" }));
+    }
 
-        const hash = await bcrypt.hash(password, 10);
-        await pool.query(
-          "INSERT INTO users(email,password) VALUES($1,$2)",
-          [email, hash]
-        );
+    let parsed;
+    try {
+      parsed = JSON.parse(body);
+    } catch (err) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: "Invalid JSON" }));
+    }
 
-        res.writeHead(201, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ message: "Registered successfully ✅" }));
-      } catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid request" }));
+    const { email, password } = parsed;
+
+    if (!email || !password) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      return res.end(
+        JSON.stringify({ error: "Email and password required" })
+      );
+    }
+
+    try {
+      const existing = await pool.query(
+        "SELECT 1 FROM users WHERE email = $1",
+        [email]
+      );
+
+      if (existing.rows.length > 0) {
+        res.writeHead(409, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ error: "User already exists" }));
       }
-    });
-    return;
-  }
+
+      const hashed = await bcrypt.hash(password, 10);
+
+      await pool.query(
+        "INSERT INTO users (email, password) VALUES ($1, $2)",
+        [email, hashed]
+      );
+
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Registered successfully ✅" }));
+
+    } catch (err) {
+      console.error("REGISTER ERROR:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Server error" }));
+    }
+  });
+
+  return;
+}
+
+
 
   // -------- LOGIN --------
   if (req.url === "/login" && req.method === "POST") {
