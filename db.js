@@ -1,12 +1,16 @@
-import pkg from "pg";
-const { Pool } = pkg;
+import pg from "pg";
+const { Pool } = pg;
+
+if (!process.env.DATABASE_URL) {
+  console.error("❌ DATABASE_URL is NOT set");
+  process.exit(1);
+}
 
 const pool = new Pool({
-  user: "postgres",
-  host: "localhost",
-  database: "recommendation_db",
-  password: "#Suryanshu1",
-  port: 5432
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 export default pool;
