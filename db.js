@@ -6,8 +6,8 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// 🔥 AUTO-CREATE TABLES ON START (RUNS ONCE)
-async function initDB() {
+// AUTO INIT (SAFE)
+(async () => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -28,8 +28,6 @@ async function initDB() {
   } catch (err) {
     console.error("❌ DB INIT ERROR:", err);
   }
-}
-
-initDB();
+})();
 
 export default pool;
